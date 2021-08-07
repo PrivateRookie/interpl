@@ -8,6 +8,7 @@ type ParsingResult<T> = Result<T, String>;
 enum Token {
     Integer(i64),
     Plus,
+    Minus,
     EOF,
 }
 
@@ -16,6 +17,7 @@ impl Display for Token {
         match self {
             Token::Integer(val) => write!(f, "Token<INTEGER {}>", val),
             Token::Plus => write!(f, "PLUS"),
+            Token::Minus => write!(f, "MINUS"),
             Token::EOF => write!(f, "EOF"),
         }
     }
@@ -35,31 +37,78 @@ struct Interpreter {
     text: String,
     pos: usize,
     current_token: Option<Token>,
+    current_char: Option<char>,
 }
 
 impl Interpreter {
     fn new(text: String) -> Self {
+        let current_char = text.chars().nth(0);
         Self {
             text,
             pos: 0,
             current_token: None,
+            current_char,
         }
     }
 
+    /// advance the 'pos' pointer and set the current_char
+    fn advance(&mut self) {
+        self.pos += 1;
+        self.current_char = self.text.chars().nth(self.pos);
+    }
+
+    fn skip_whitespace(&mut self) {
+        while self.current_char.is_some() && self.current_char.unwrap().is_whitespace() {
+            self.advance()
+        }
+    }
+
+    fn integer(&mut self) -> ParsingResult<Token> {
+        let mut num_str = String::new();
+        loop {
+            match self.current_char {
+                Some(ch) => {
+                    if ch.is_digit(10) {
+                        num_str.push(ch);
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+                None => break,
+            }
+        }
+        let num = num_str
+            .parse()
+            .map_err(|e| format!("invalid i64 value {}: {}", num_str, e))?;
+        Ok(Token::Integer(num))
+    }
+
     fn next_token(&mut self) -> ParsingResult<Token> {
-        if self.pos > self.text.len() - 1 {
-            return Ok(Token::EOF);
+        loop {
+            match self.current_char {
+                Some(ch) => {
+                    if ch.is_whitespace() {
+                        self.skip_whitespace();
+                        continue;
+                    }
+                    if ch.is_digit(10) {
+                        break self.integer();
+                    }
+                    if ch == '+' {
+                        self.advance();
+                        break Ok(Token::Plus);
+                    }
+                    if ch == '-' {
+                        self.advance();
+                        break Ok(Token::Minus);
+                    }
+
+                    break Err(format!("invalid char {}", ch));
+                }
+                None => break Ok(Token::EOF),
+            }
         }
-        let current_char = self.text.chars().nth(self.pos).unwrap();
-        if current_char.is_digit(10) {
-            self.pos += 1;
-            return Ok(Token::Integer(current_char.to_digit(10).unwrap().into()));
-        }
-        if current_char == '+' {
-            self.pos += 1;
-            return Ok(Token::Plus);
-        }
-        return Err(format!("invalid token {}", current_char));
     }
 
     fn eat(&mut self, token: &Token) -> ParsingResult<()> {
@@ -70,22 +119,6 @@ impl Interpreter {
             } else {
                 Err(format!("expect {}, found {}", token, c_token))
             }
-            // alt compare impl
-            // match (c_token, token) {
-            //     (Token::Integer(_), Token::Integer(_)) => {
-            //         self.current_token = Some(self.next_token()?);
-            //         Ok(())
-            //     }
-            //     (Token::Plus, Token::Plus) => {
-            //         self.current_token = Some(self.next_token()?);
-            //         Ok(())
-            //     }
-            //     (Token::EOF, Token::EOF) => {
-            //         self.current_token = Some(self.next_token()?);
-            //         Ok(())
-            //     }
-            //     _ => Err(format!("expect {}, found {}", c_token, token)),
-            // }
         } else {
             Err(format!("consume token while in init state"))
         }
@@ -97,12 +130,16 @@ impl Interpreter {
         let left = self.current_token.clone().unwrap();
         self.eat(&Token::Integer(0))?;
 
-        let _op = self.current_token.clone().unwrap();
-        self.eat(&Token::Plus)?;
+        let op = self.current_token.clone().unwrap();
+        self.eat(&op)?;
 
         let right = self.current_token.clone().unwrap();
         self.eat(&Token::Integer(0))?;
-        Ok(left.into_val()? + right.into_val()?)
+        match op {
+            Token::Plus => Ok(left.into_val()? + right.into_val()?),
+            Token::Minus => Ok(left.into_val()? - right.into_val()?),
+            _ => unreachable!(),
+        }
     }
 }
 
