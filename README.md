@@ -17,3 +17,12 @@ cargo run --bin p1
 ```bash
 cargo run --bin p2
 ```
+
+## part3
+
+- [REF](https://ruslanspivak.com/lsbasi-part3/)
+- [impl](src/bin/p3.rs)
+
+```bash
+cargo run --bin p3
+```
