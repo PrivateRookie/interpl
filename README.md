@@ -38,3 +38,12 @@ cargo run --bin p3
 cargo run --bin p4
 cargo run --bin p4_span
 ```
+
+## part5
+
+- [REF](https://ruslanspivak.com/lsbasi-part5/)
+- [impl](src/bin/p5.rs)
+
+```bash
+cargo run --bin p5
+```
