@@ -11,6 +11,8 @@ enum TokenTy {
     Minus,
     Mul,
     Div,
+    LParen,
+    RParen,
     EOF,
 }
 
@@ -22,6 +24,8 @@ impl Display for TokenTy {
             TokenTy::Div => write!(f, "Div"),
             TokenTy::EOF => write!(f, "EOF"),
             TokenTy::Plus => write!(f, "Plus"),
+            TokenTy::LParen => write!(f, "LParent"),
+            TokenTy::RParen => write!(f, "RParent"),
             TokenTy::Minus => write!(f, "Minus"),
         }
     }
@@ -52,6 +56,15 @@ impl Token {
             raw,
             start,
             end,
+        }
+    }
+
+    fn single_char(ty: TokenTy, ch: char, pos: usize) -> Self {
+        Self {
+            ty,
+            raw: ch.to_string(),
+            start: pos,
+            end: pos,
         }
     }
 
@@ -124,6 +137,14 @@ impl Lexer {
                     if ch.is_digit(10) {
                         break self.integer();
                     }
+                    if ch == '(' {
+                        self.advance();
+                        break Ok(Token::single_char(TokenTy::LParen, ch, self.pos));
+                    }
+                    if ch == ')' {
+                        self.advance();
+                        break Ok(Token::single_char(TokenTy::RParen, ch, self.pos));
+                    }
                     if OP_CHARS.contains(ch) {
                         let ty = match ch {
                             '+' => TokenTy::Plus,
@@ -133,12 +154,7 @@ impl Lexer {
                             _ => unreachable!(),
                         };
                         self.advance();
-                        break Ok(Token {
-                            ty,
-                            raw: ch.to_string(),
-                            start: self.pos,
-                            end: self.pos,
-                        });
+                        break Ok(Token::single_char(ty, ch, self.pos));
                     }
                     let source_subset: String = self.text.chars().take(self.pos + 1).collect();
                     let ws = " ".repeat(source_subset.len() - 1);
@@ -194,8 +210,19 @@ impl Interpreter {
 
     fn factor(&mut self) -> ParsingResult<i64> {
         let token = self.current_token.clone().unwrap();
-        self.eat(TokenTy::Integer)?;
-        token.parse_int()
+        match token.ty {
+            TokenTy::Integer => {
+                self.eat(token.ty.clone())?;
+                token.parse_int()
+            }
+            TokenTy::LParen => {
+                self.eat(token.ty.clone())?;
+                let expr = self.expr()?;
+                self.eat(TokenTy::RParen)?;
+                Ok(expr)
+            }
+            _ => Err(format!("expect integer or '(', got {}", token)),
+        }
     }
 
     fn term(&mut self) -> ParsingResult<i64> {
@@ -211,7 +238,7 @@ impl Interpreter {
                         self.eat(TokenTy::Div)?;
                         ret /= self.factor()?;
                     }
-                    TokenTy::Plus | TokenTy::Minus | TokenTy::EOF => {
+                    TokenTy::Plus | TokenTy::Minus | TokenTy::EOF | TokenTy::RParen => {
                         break;
                     }
                     _ => return Err(format!("unexpected token {}", current_token)),
@@ -236,8 +263,13 @@ impl Interpreter {
                         self.eat(TokenTy::Minus)?;
                         ret -= self.term()?;
                     }
-                    TokenTy::EOF => break,
-                    _ => unreachable!(),
+                    TokenTy::EOF | TokenTy::RParen => break,
+                    _ => {
+                        return Err(format!(
+                            "parse expr error, got unexpected token {}",
+                            current_token
+                        ));
+                    }
                 }
             } else {
                 break;
