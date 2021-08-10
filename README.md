@@ -31,7 +31,10 @@ cargo run --bin p3
 
 - [REF](https://ruslanspivak.com/lsbasi-part4/)
 - [impl](src/bin/p4.rs)
+- [impl](src/bin/p4_span.rs) token contains span info
+
 
 ```bash
 cargo run --bin p4
+cargo run --bin p4_span
 ```
