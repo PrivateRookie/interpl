@@ -1,5 +1,6 @@
 {
     "cSpell.words": [
         "Paren"
-    ]
+    ],
+    "rust-analyzer.checkOnSave.command": "clippy"
 }

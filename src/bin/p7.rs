@@ -13,7 +13,7 @@ enum TokenTy {
     Div,
     LParen,
     RParen,
-    EOF,
+    Eof,
 }
 
 impl Display for TokenTy {
@@ -22,7 +22,7 @@ impl Display for TokenTy {
             TokenTy::Integer => write!(f, "Integer"),
             TokenTy::Mul => write!(f, "Mul"),
             TokenTy::Div => write!(f, "Div"),
-            TokenTy::EOF => write!(f, "EOF"),
+            TokenTy::Eof => write!(f, "EOF"),
             TokenTy::Plus => write!(f, "Plus"),
             TokenTy::LParen => write!(f, "LParent"),
             TokenTy::RParen => write!(f, "RParent"),
@@ -142,7 +142,7 @@ struct Lexer {
 
 impl Lexer {
     fn new(text: String) -> Self {
-        let current_char = text.chars().nth(0);
+        let current_char = text.chars().next();
         Self {
             text,
             pos: 0,
@@ -165,17 +165,12 @@ impl Lexer {
     fn integer(&mut self) -> ParsingResult<Token> {
         let mut raw = String::new();
         let start = self.pos;
-        loop {
-            match self.current_char {
-                Some(ch) => {
-                    if ch.is_digit(10) {
-                        raw.push(ch);
-                        self.advance();
-                    } else {
-                        break;
-                    }
-                }
-                None => break,
+        while let Some(ch) = self.current_char {
+            if ch.is_digit(10) {
+                raw.push(ch);
+                self.advance();
+            } else {
+                break;
             }
         }
         let end = self.pos;
@@ -223,7 +218,7 @@ impl Lexer {
                 }
                 None => {
                     break Ok(Token {
-                        ty: TokenTy::EOF,
+                        ty: TokenTy::Eof,
                         raw: String::new(),
                         start: self.pos,
                         end: self.pos,
@@ -261,7 +256,7 @@ impl Parser {
                 Err(format!("expect {}, found {}", token_ty, c_token.ty))
             }
         } else {
-            Err(format!("consume token while in init state"))
+            Err("consume token while in init state".to_string())
         }
     }
 
@@ -276,7 +271,7 @@ impl Parser {
             }
             TokenTy::LParen => {
                 log::debug!("[FACTOR] paren");
-                self.eat(token.ty.clone())?;
+                self.eat(token.ty)?;
                 let expr = self.expr()?;
                 self.eat(TokenTy::RParen)?;
                 Ok(expr)
@@ -294,31 +289,29 @@ impl Parser {
                 TokenTy::Mul => {
                     self.eat(TokenTy::Mul)?;
                     let right = self.factor()?;
-                    return Ok(Expr::BiOperate(Box::new(BiOperate {
+                    Ok(Expr::BiOperate(Box::new(BiOperate {
                         op: BiOperator::Mul,
                         left,
                         right,
-                    })));
+                    })))
                 }
                 TokenTy::Div => {
                     self.eat(TokenTy::Div)?;
                     let right = self.factor()?;
-                    return Ok(Expr::BiOperate(Box::new(BiOperate {
+                    Ok(Expr::BiOperate(Box::new(BiOperate {
                         op: BiOperator::Div,
                         left,
                         right,
-                    })));
+                    })))
                 }
-                TokenTy::Plus | TokenTy::Minus | TokenTy::EOF | TokenTy::RParen => return Ok(left),
-                _ => {
-                    return Err(format!(
-                        "parse term error, unexpected token {}",
-                        current_token
-                    ));
-                }
-            };
+                TokenTy::Plus | TokenTy::Minus | TokenTy::Eof | TokenTy::RParen => Ok(left),
+                _ => Err(format!(
+                    "parse term error, unexpected token {}",
+                    current_token
+                )),
+            }
         } else {
-            return Err(format!("enter empty token"));
+            Err("enter empty token".to_string())
         }
     }
 
@@ -331,31 +324,31 @@ impl Parser {
                 TokenTy::Plus => {
                     self.eat(TokenTy::Plus)?;
                     let right = self.term()?;
-                    return Ok(Expr::BiOperate(Box::new(BiOperate {
+                    Ok(Expr::BiOperate(Box::new(BiOperate {
                         op: BiOperator::Plus,
                         left,
                         right,
-                    })));
+                    })))
                 }
                 TokenTy::Minus => {
                     self.eat(TokenTy::Minus)?;
                     let right = self.term()?;
-                    return Ok(Expr::BiOperate(Box::new(BiOperate {
+                    Ok(Expr::BiOperate(Box::new(BiOperate {
                         op: BiOperator::Minus,
                         left,
                         right,
-                    })));
+                    })))
                 }
-                TokenTy::EOF | TokenTy::RParen => return Ok(left),
+                TokenTy::Eof | TokenTy::RParen => Ok(left),
                 _ => {
                     return Err(format!(
                         "parse term error, unexpected token {}",
                         current_token
                     ));
                 }
-            };
+            }
         } else {
-            return Err(format!("enter empty token"));
+            Err("enter empty token".to_string())
         }
     }
 }

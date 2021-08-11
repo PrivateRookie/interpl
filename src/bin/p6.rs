@@ -13,7 +13,7 @@ enum TokenTy {
     Div,
     LParen,
     RParen,
-    EOF,
+    Eof,
 }
 
 impl Display for TokenTy {
@@ -22,7 +22,7 @@ impl Display for TokenTy {
             TokenTy::Integer => write!(f, "Integer"),
             TokenTy::Mul => write!(f, "Mul"),
             TokenTy::Div => write!(f, "Div"),
-            TokenTy::EOF => write!(f, "EOF"),
+            TokenTy::Eof => write!(f, "EOF"),
             TokenTy::Plus => write!(f, "Plus"),
             TokenTy::LParen => write!(f, "LParent"),
             TokenTy::RParen => write!(f, "RParent"),
@@ -85,7 +85,7 @@ struct Lexer {
 
 impl Lexer {
     fn new(text: String) -> Self {
-        let current_char = text.chars().nth(0);
+        let current_char = text.chars().next();
         Self {
             text,
             pos: 0,
@@ -108,17 +108,12 @@ impl Lexer {
     fn integer(&mut self) -> ParsingResult<Token> {
         let mut raw = String::new();
         let start = self.pos;
-        loop {
-            match self.current_char {
-                Some(ch) => {
-                    if ch.is_digit(10) {
-                        raw.push(ch);
-                        self.advance();
-                    } else {
-                        break;
-                    }
-                }
-                None => break,
+        while let Some(ch) = self.current_char {
+            if ch.is_digit(10) {
+                raw.push(ch);
+                self.advance();
+            } else {
+                break;
             }
         }
         let end = self.pos;
@@ -166,7 +161,7 @@ impl Lexer {
                 }
                 None => {
                     break Ok(Token {
-                        ty: TokenTy::EOF,
+                        ty: TokenTy::Eof,
                         raw: String::new(),
                         start: self.pos,
                         end: self.pos,
@@ -204,7 +199,7 @@ impl Interpreter {
                 Err(format!("expect {}, found {}", token_ty, c_token.ty))
             }
         } else {
-            Err(format!("consume token while in init state"))
+            Err("consume token while in init state".to_string())
         }
     }
 
@@ -216,7 +211,7 @@ impl Interpreter {
                 token.parse_int()
             }
             TokenTy::LParen => {
-                self.eat(token.ty.clone())?;
+                self.eat(token.ty)?;
                 let expr = self.expr()?;
                 self.eat(TokenTy::RParen)?;
                 Ok(expr)
@@ -227,24 +222,20 @@ impl Interpreter {
 
     fn term(&mut self) -> ParsingResult<i64> {
         let mut ret = self.factor()?;
-        loop {
-            if let Some(current_token) = &self.current_token {
-                match &current_token.ty {
-                    TokenTy::Mul => {
-                        self.eat(TokenTy::Mul)?;
-                        ret *= self.factor()?;
-                    }
-                    TokenTy::Div => {
-                        self.eat(TokenTy::Div)?;
-                        ret /= self.factor()?;
-                    }
-                    TokenTy::Plus | TokenTy::Minus | TokenTy::EOF | TokenTy::RParen => {
-                        break;
-                    }
-                    _ => return Err(format!("unexpected token {}", current_token)),
+        while let Some(current_token) = &self.current_token {
+            match &current_token.ty {
+                TokenTy::Mul => {
+                    self.eat(TokenTy::Mul)?;
+                    ret *= self.factor()?;
                 }
-            } else {
-                break;
+                TokenTy::Div => {
+                    self.eat(TokenTy::Div)?;
+                    ret /= self.factor()?;
+                }
+                TokenTy::Plus | TokenTy::Minus | TokenTy::Eof | TokenTy::RParen => {
+                    break;
+                }
+                _ => return Err(format!("unexpected token {}", current_token)),
             }
         }
         Ok(ret)
@@ -252,27 +243,23 @@ impl Interpreter {
 
     fn expr(&mut self) -> ParsingResult<i64> {
         let mut ret = self.term()?;
-        loop {
-            if let Some(current_token) = &self.current_token {
-                match current_token.ty {
-                    TokenTy::Plus => {
-                        self.eat(TokenTy::Plus)?;
-                        ret += self.term()?;
-                    }
-                    TokenTy::Minus => {
-                        self.eat(TokenTy::Minus)?;
-                        ret -= self.term()?;
-                    }
-                    TokenTy::EOF | TokenTy::RParen => break,
-                    _ => {
-                        return Err(format!(
-                            "parse expr error, got unexpected token {}",
-                            current_token
-                        ));
-                    }
+        while let Some(current_token) = &self.current_token {
+            match current_token.ty {
+                TokenTy::Plus => {
+                    self.eat(TokenTy::Plus)?;
+                    ret += self.term()?;
                 }
-            } else {
-                break;
+                TokenTy::Minus => {
+                    self.eat(TokenTy::Minus)?;
+                    ret -= self.term()?;
+                }
+                TokenTy::Eof | TokenTy::RParen => break,
+                _ => {
+                    return Err(format!(
+                        "parse expr error, got unexpected token {}",
+                        current_token
+                    ));
+                }
             }
         }
         Ok(ret)

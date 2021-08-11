@@ -8,7 +8,7 @@ type ParsingResult<T> = Result<T, String>;
 enum Token {
     Integer(i64),
     Plus,
-    EOF,
+    Eof,
 }
 
 impl Display for Token {
@@ -16,7 +16,7 @@ impl Display for Token {
         match self {
             Token::Integer(val) => write!(f, "Token<INTEGER {}>", val),
             Token::Plus => write!(f, "PLUS"),
-            Token::EOF => write!(f, "EOF"),
+            Token::Eof => write!(f, "EOF"),
         }
     }
 }
@@ -48,7 +48,7 @@ impl Interpreter {
 
     fn next_token(&mut self) -> ParsingResult<Token> {
         if self.pos > self.text.len() - 1 {
-            return Ok(Token::EOF);
+            return Ok(Token::Eof);
         }
         let current_char = self.text.chars().nth(self.pos).unwrap();
         if current_char.is_digit(10) {
@@ -87,7 +87,7 @@ impl Interpreter {
             //     _ => Err(format!("expect {}, found {}", c_token, token)),
             // }
         } else {
-            Err(format!("consume token while in init state"))
+            Err("consume token while in init state".to_string())
         }
     }
 

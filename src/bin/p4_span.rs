@@ -8,7 +8,7 @@ enum TokenTy {
     Integer,
     Mul,
     Div,
-    EOF,
+    Eof,
 }
 
 impl Display for TokenTy {
@@ -17,7 +17,7 @@ impl Display for TokenTy {
             TokenTy::Integer => write!(f, "INTEGER"),
             TokenTy::Mul => write!(f, "MUL"),
             TokenTy::Div => write!(f, "DIV"),
-            TokenTy::EOF => write!(f, "EOF"),
+            TokenTy::Eof => write!(f, "EOF"),
         }
     }
 }
@@ -63,7 +63,7 @@ struct Lexer {
 
 impl Lexer {
     fn new(text: String) -> Self {
-        let current_char = text.chars().nth(0);
+        let current_char = text.chars().next();
         Self {
             text,
             pos: 0,
@@ -86,17 +86,12 @@ impl Lexer {
     fn integer(&mut self) -> ParsingResult<Token> {
         let mut raw = String::new();
         let start = self.pos;
-        loop {
-            match self.current_char {
-                Some(ch) => {
-                    if ch.is_digit(10) {
-                        raw.push(ch);
-                        self.advance();
-                    } else {
-                        break;
-                    }
-                }
-                None => break,
+        while let Some(ch) = self.current_char {
+            if ch.is_digit(10) {
+                raw.push(ch);
+                self.advance();
+            } else {
+                break;
             }
         }
         let end = self.pos;
@@ -143,7 +138,7 @@ impl Lexer {
                 }
                 None => {
                     break Ok(Token {
-                        ty: TokenTy::EOF,
+                        ty: TokenTy::Eof,
                         raw: String::new(),
                         start: self.pos,
                         end: self.pos,
@@ -181,7 +176,7 @@ impl Interpreter {
                 Err(format!("expect {}, found {}", token_ty, c_token.ty))
             }
         } else {
-            Err(format!("consume token while in init state"))
+            Err("consume token while in init state".to_string())
         }
     }
 
@@ -193,22 +188,18 @@ impl Interpreter {
 
     fn expr(&mut self) -> ParsingResult<i64> {
         let mut ret = self.factor()?;
-        loop {
-            if let Some(current_token) = &self.current_token {
-                match current_token.ty {
-                    TokenTy::Integer => return Err(format!("invalid token {}", current_token)),
-                    TokenTy::Mul => {
-                        self.eat(TokenTy::Mul)?;
-                        ret *= self.factor()?;
-                    }
-                    TokenTy::Div => {
-                        self.eat(TokenTy::Div)?;
-                        ret /= self.factor()?;
-                    }
-                    TokenTy::EOF => break,
+        while let Some(current_token) = &self.current_token {
+            match current_token.ty {
+                TokenTy::Integer => return Err(format!("invalid token {}", current_token)),
+                TokenTy::Mul => {
+                    self.eat(TokenTy::Mul)?;
+                    ret *= self.factor()?;
                 }
-            } else {
-                break;
+                TokenTy::Div => {
+                    self.eat(TokenTy::Div)?;
+                    ret /= self.factor()?;
+                }
+                TokenTy::Eof => break,
             }
         }
         Ok(ret)

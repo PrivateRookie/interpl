@@ -9,7 +9,7 @@ enum Token {
     Integer(i64),
     Mul,
     Div,
-    EOF,
+    Eof,
 }
 
 impl Display for Token {
@@ -18,7 +18,7 @@ impl Display for Token {
             Token::Integer(val) => write!(f, "Token<INTEGER {}>", val),
             Token::Mul => write!(f, "MUL"),
             Token::Div => write!(f, "DIV"),
-            Token::EOF => write!(f, "EOF"),
+            Token::Eof => write!(f, "EOF"),
         }
     }
 }
@@ -41,7 +41,7 @@ struct Lexer {
 
 impl Lexer {
     fn new(text: String) -> Self {
-        let current_char = text.chars().nth(0);
+        let current_char = text.chars().next();
         Self {
             text,
             pos: 0,
@@ -63,17 +63,12 @@ impl Lexer {
 
     fn integer(&mut self) -> ParsingResult<Token> {
         let mut num_str = String::new();
-        loop {
-            match self.current_char {
-                Some(ch) => {
-                    if ch.is_digit(10) {
-                        num_str.push(ch);
-                        self.advance();
-                    } else {
-                        break;
-                    }
-                }
-                None => break,
+        while let Some(ch) = self.current_char {
+            if ch.is_digit(10) {
+                num_str.push(ch);
+                self.advance();
+            } else {
+                break;
             }
         }
         let num = num_str
@@ -104,7 +99,7 @@ impl Lexer {
 
                     break Err(format!("invalid char {}", ch));
                 }
-                None => break Ok(Token::EOF),
+                None => break Ok(Token::Eof),
             }
         }
     }
@@ -137,7 +132,7 @@ impl Interpreter {
                 Err(format!("expect {}, found {}", token, c_token))
             }
         } else {
-            Err(format!("consume token while in init state"))
+            Err("consume token while in init state".to_string())
         }
     }
 
@@ -149,22 +144,18 @@ impl Interpreter {
 
     fn expr(&mut self) -> ParsingResult<i64> {
         let mut ret = self.factor()?;
-        loop {
-            if let Some(current_token) = &self.current_token {
-                match current_token {
-                    Token::Integer(_) => return Err(format!("invalid token {}", current_token)),
-                    Token::Mul => {
-                        self.eat(&Token::Mul)?;
-                        ret *= self.factor()?;
-                    }
-                    Token::Div => {
-                        self.eat(&Token::Div)?;
-                        ret /= self.factor()?;
-                    }
-                    Token::EOF => break,
+        while let Some(current_token) = &self.current_token {
+            match current_token {
+                Token::Integer(_) => return Err(format!("invalid token {}", current_token)),
+                Token::Mul => {
+                    self.eat(&Token::Mul)?;
+                    ret *= self.factor()?;
                 }
-            } else {
-                break;
+                Token::Div => {
+                    self.eat(&Token::Div)?;
+                    ret /= self.factor()?;
+                }
+                Token::Eof => break,
             }
         }
         Ok(ret)

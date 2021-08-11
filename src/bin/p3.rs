@@ -9,7 +9,7 @@ enum Token {
     Integer(i64),
     Plus,
     Minus,
-    EOF,
+    Eof,
 }
 
 impl Display for Token {
@@ -18,7 +18,7 @@ impl Display for Token {
             Token::Integer(val) => write!(f, "Token<INTEGER {}>", val),
             Token::Plus => write!(f, "PLUS"),
             Token::Minus => write!(f, "MINUS"),
-            Token::EOF => write!(f, "EOF"),
+            Token::Eof => write!(f, "EOF"),
         }
     }
 }
@@ -42,7 +42,7 @@ struct Interpreter {
 
 impl Interpreter {
     fn new(text: String) -> Self {
-        let current_char = text.chars().nth(0);
+        let current_char = text.chars().next();
         Self {
             text,
             pos: 0,
@@ -68,17 +68,12 @@ impl Interpreter {
 
     fn integer(&mut self) -> ParsingResult<Token> {
         let mut num_str = String::new();
-        loop {
-            match self.current_char {
-                Some(ch) => {
-                    if ch.is_digit(10) {
-                        num_str.push(ch);
-                        self.advance();
-                    } else {
-                        break;
-                    }
-                }
-                None => break,
+        while let Some(ch) = self.current_char {
+            if ch.is_digit(10) {
+                num_str.push(ch);
+                self.advance();
+            } else {
+                break;
             }
         }
         let num = num_str
@@ -109,7 +104,7 @@ impl Interpreter {
 
                     break Err(format!("invalid char {}", ch));
                 }
-                None => break Ok(Token::EOF),
+                None => break Ok(Token::Eof),
             }
         }
     }
@@ -126,7 +121,7 @@ impl Interpreter {
                 Err(format!("expect {}, found {}", token, c_token))
             }
         } else {
-            Err(format!("consume token while in init state"))
+            Err("consume token while in init state".to_string())
         }
     }
 
@@ -139,22 +134,18 @@ impl Interpreter {
     fn expr(&mut self) -> ParsingResult<i64> {
         self.current_token = Some(self.next_token()?);
         let mut ret = self.term()?;
-        loop {
-            if let Some(current_token) = &self.current_token {
-                match current_token {
-                    Token::Integer(_) => return Err(format!("invalid token {}", current_token)),
-                    Token::Plus => {
-                        self.eat(&Token::Plus)?;
-                        ret += self.term()?;
-                    }
-                    Token::Minus => {
-                        self.eat(&Token::Minus)?;
-                        ret -= self.term()?;
-                    }
-                    Token::EOF => break,
+        while let Some(current_token) = &self.current_token {
+            match current_token {
+                Token::Integer(_) => return Err(format!("invalid token {}", current_token)),
+                Token::Plus => {
+                    self.eat(&Token::Plus)?;
+                    ret += self.term()?;
                 }
-            } else {
-                break;
+                Token::Minus => {
+                    self.eat(&Token::Minus)?;
+                    ret -= self.term()?;
+                }
+                Token::Eof => break,
             }
         }
         Ok(ret)
