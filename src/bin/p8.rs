@@ -87,6 +87,7 @@ enum BiOperator {
     Mul,
     Div,
 }
+
 #[derive(Debug, Clone, PartialEq)]
 struct BiOperate {
     op: BiOperator,
@@ -107,6 +108,27 @@ impl Visit for BiOperate {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum UnaryOperator {
+    Plus,
+    Minus,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct UnaryOperate {
+    op: UnaryOperator,
+    expr: Expr,
+}
+
+impl Visit for UnaryOperate {
+    fn visit(&self) -> i64 {
+        match self.op {
+            UnaryOperator::Plus => self.expr.visit(),
+            UnaryOperator::Minus => -(self.expr.visit()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct Num {
     val: i64,
@@ -121,6 +143,7 @@ impl Visit for Num {
 #[derive(Debug, Clone, PartialEq)]
 enum Expr {
     BiOperate(Box<BiOperate>),
+    UnaryOperate(Box<UnaryOperate>),
     Num(Num),
 }
 
@@ -128,6 +151,7 @@ impl Visit for Expr {
     fn visit(&self) -> i64 {
         match self {
             Expr::BiOperate(bin_op) => bin_op.visit(),
+            Expr::UnaryOperate(unary_op) => unary_op.visit(),
             Expr::Num(num) => num.visit(),
         }
     }
@@ -268,6 +292,24 @@ impl Parser {
     fn factor(&mut self) -> ParsingResult<Expr> {
         let token = self.current_token.clone().unwrap();
         match token.ty {
+            TokenTy::Plus => {
+                log::debug!("[FACTOR] unary");
+                self.eat(token.ty.clone())?;
+                let expr = self.expr()?;
+                Ok(Expr::UnaryOperate(Box::new(UnaryOperate {
+                    op: UnaryOperator::Plus,
+                    expr,
+                })))
+            }
+            TokenTy::Minus => {
+                log::debug!("[FACTOR] unary");
+                self.eat(token.ty.clone())?;
+                let expr = self.expr()?;
+                Ok(Expr::UnaryOperate(Box::new(UnaryOperate {
+                    op: UnaryOperator::Minus,
+                    expr,
+                })))
+            }
             TokenTy::Integer => {
                 log::debug!("[FACTOR] integer");
                 self.eat(token.ty.clone())?;

@@ -65,3 +65,13 @@ cargo run --bin p6
 ```bash
 cargo run --bin p7
 ```
+
+
+## part8
+
+- [REF](https://ruslanspivak.com/lsbasi-part8/)
+- [impl](src/bin/p8.rs)
+
+```bash
+cargo run --bin p8
+```
