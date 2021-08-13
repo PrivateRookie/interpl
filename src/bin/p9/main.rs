@@ -1,19 +1,24 @@
 mod parser;
 mod token;
-use std::io::{Write, stdin, stdout};
+use std::{
+    collections::HashMap,
+    io::{stdin, stdout, Write},
+};
 
-use token::Lexer;
 use parser::Parser;
+use token::Lexer;
 
 type ParsingResult<T> = Result<T, String>;
-trait Visit {
-    fn visit(&self) -> i64;
+pub trait Visit {
+    fn visit(&self, context: &mut HashMap<String, i64>) -> ParsingResult<i64>;
 }
 fn main() {
     pretty_env_logger::init();
     let mut input = String::new();
+    let mut context = HashMap::new();
     loop {
         input.clear();
+        context.clear();
         print!("calc> ");
         stdout().flush().unwrap();
         stdin().read_line(&mut input).unwrap();
@@ -25,7 +30,7 @@ fn main() {
         let mut parser = Parser::new(lexer);
         match parser.expr() {
             Ok(expr) => {
-                println!("{}", expr.visit());
+                println!("{}", expr.visit(&mut context).unwrap());
             }
             Err(e) => println!("Error: {}", e),
         }
