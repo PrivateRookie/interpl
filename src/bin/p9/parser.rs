@@ -1,7 +1,15 @@
+use log::debug;
+
 use super::{
     token::{Token, TokenTy},
     Lexer, ParsingResult, Visit,
 };
+
+macro_rules! ast_debug {
+    ($ast:ident) => {
+        log::debug!("AST {:?}", $ast);
+    };
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
@@ -213,24 +221,28 @@ impl Parser {
 
     /// program : compound_statement DOT
     pub fn program(&mut self) -> ParsingResult<Program> {
-        log::debug!("[PROGOM]");
+        debug!("parsing program...");
         let compound_statement = self.compound_statement()?;
         self.eat(TokenTy::Dot)?;
-        Ok(Program { compound_statement })
+        let prog = Program { compound_statement };
+        ast_debug!(prog);
+        Ok(prog)
     }
 
     /// compound_statement : BEGIN statement_list END
     pub fn compound_statement(&mut self) -> ParsingResult<Compound> {
-        log::debug!("[COMPOUND]");
+        debug!("parsing compound statement...");
         self.eat(TokenTy::Begin)?;
         let children = self.statement_list()?;
         self.eat(TokenTy::End)?;
-        Ok(Compound { children })
+        let compound = Compound { children };
+        ast_debug!(compound);
+        Ok(compound)
     }
 
     /// statement_list : statement | statement SEMI statement_list
     pub fn statement_list(&mut self) -> ParsingResult<Vec<Statement>> {
-        log::debug!("[STMT_LIST]");
+        debug!("parsing statement list...");
         let first = self.statement()?;
         let mut ret = vec![first];
         while let Some(current_token) = &self.current_token {
@@ -241,6 +253,7 @@ impl Parser {
                 break;
             }
         }
+        ast_debug!(ret);
         Ok(ret)
     }
 
@@ -248,13 +261,15 @@ impl Parser {
     ///           | assignment_statement
     ///           | empty
     pub fn statement(&mut self) -> ParsingResult<Statement> {
-        log::debug!("[STMT   ]");
+        debug!("parsing statement...");
         if let Some(current_token) = &self.current_token {
-            match current_token.ty {
-                TokenTy::Begin => Ok(Statement::Compound(self.compound_statement()?)),
-                TokenTy::Id => Ok(Statement::Assignment(self.assignment()?)),
-                _ => Ok(Statement::Empty),
-            }
+            let stmt = match current_token.ty {
+                TokenTy::Begin => Statement::Compound(self.compound_statement()?),
+                TokenTy::Id => Statement::Assignment(self.assignment()?),
+                _ => Statement::Empty,
+            };
+            ast_debug!(stmt);
+            Ok(stmt)
         } else {
             Err("expect more token".to_string())
         }
@@ -262,16 +277,18 @@ impl Parser {
 
     /// assignment_statement : variable ASSIGN expr
     pub fn assignment(&mut self) -> ParsingResult<Assignment> {
-        log::debug!("[ASSIGN]");
+        debug!("parsing assignment statement...");
         let var = self.variable()?;
         self.eat(TokenTy::Assign)?;
         let expr = self.expr()?;
-        Ok(Assignment { var, expr })
+        let assign = Assignment { var, expr };
+        ast_debug!(assign);
+        Ok(assign)
     }
 
     /// expr: term ((PLUS | MINUS) term)*
     pub fn expr(&mut self) -> ParsingResult<Expr> {
-        log::debug!("[EXPR   ]");
+        debug!("parsing expr...");
         let mut ret = Expr::Span(self.term()?);
         while let Some(current_token) = &self.current_token {
             if current_token.ty == TokenTy::Plus {
@@ -294,12 +311,13 @@ impl Parser {
                 break;
             }
         }
+        ast_debug!(ret);
         Ok(ret)
     }
 
     /// term: factor ((MUL | DIV) factor)*
     pub fn term(&mut self) -> ParsingResult<Term> {
-        log::debug!("[TERM   ]");
+        debug!("parsing term...");
         let mut ret = Term::Span(self.factor()?);
         while let Some(current_token) = &self.current_token {
             if current_token.ty == TokenTy::Mul {
@@ -322,6 +340,7 @@ impl Parser {
                 break;
             }
         }
+        ast_debug!(ret);
         Ok(ret)
     }
 
@@ -331,56 +350,67 @@ impl Parser {
     ///        | LPAREN expr RPAREN
     ///        | variable
     pub fn factor(&mut self) -> ParsingResult<Factor> {
-        let token = self.current_token.clone().unwrap();
-        match token.ty {
-            TokenTy::Plus => {
-                log::debug!("[FACTOR] unary");
-                self.eat(token.ty)?;
-                let factor = self.factor()?;
-                Ok(Factor::UnaryOp(UnaryOperate {
-                    op: UnaryOperator::Plus,
-                    ele: Box::new(factor),
-                }))
+        debug!("parsing factor...");
+        if let Some(token) = self.current_token.clone() {
+            match token.ty {
+                TokenTy::Plus => {
+                    self.eat(token.ty)?;
+                    let factor = self.factor()?;
+                    let plus_factor = Factor::UnaryOp(UnaryOperate {
+                        op: UnaryOperator::Plus,
+                        ele: Box::new(factor),
+                    });
+                    ast_debug!(plus_factor);
+                    Ok(plus_factor)
+                }
+                TokenTy::Minus => {
+                    self.eat(token.ty)?;
+                    let factor = self.factor()?;
+                    let minus_factor = Factor::UnaryOp(UnaryOperate {
+                        op: UnaryOperator::Minus,
+                        ele: Box::new(factor),
+                    });
+                    ast_debug!(minus_factor);
+                    Ok(minus_factor)
+                }
+                TokenTy::Integer => {
+                    self.eat(token.ty.clone())?;
+                    let val = token.parse_int()?;
+                    let int_factor = Factor::Num(Num { val });
+                    ast_debug!(int_factor);
+                    Ok(int_factor)
+                }
+                TokenTy::LParen => {
+                    self.eat(token.ty)?;
+                    let expr = self.expr()?;
+                    self.eat(TokenTy::RParen)?;
+                    let expr_factor = Factor::Paren(Box::new(expr));
+                    ast_debug!(expr_factor);
+                    Ok(expr_factor)
+                }
+                TokenTy::Id => {
+                    let var = self.variable()?;
+                    let var_factor = Factor::Var(var);
+                    ast_debug!(var_factor);
+                    Ok(var_factor)
+                }
+                _ => Err(format!("expect factor, got {}", token)),
             }
-            TokenTy::Minus => {
-                log::debug!("[FACTOR] unary");
-                self.eat(token.ty)?;
-                let factor = self.factor()?;
-                Ok(Factor::UnaryOp(UnaryOperate {
-                    op: UnaryOperator::Minus,
-                    ele: Box::new(factor),
-                }))
-            }
-            TokenTy::Integer => {
-                log::debug!("[FACTOR] integer");
-                self.eat(token.ty.clone())?;
-                let val = token.parse_int()?;
-                Ok(Factor::Num(Num { val }))
-            }
-            TokenTy::LParen => {
-                log::debug!("[FACTOR] paren");
-                self.eat(token.ty)?;
-                let expr = self.expr()?;
-                self.eat(TokenTy::RParen)?;
-                Ok(Factor::Paren(Box::new(expr)))
-            }
-            TokenTy::Id => {
-                log::debug!("[FACTOR] id");
-                let var = self.variable()?;
-                Ok(Factor::Var(var))
-            }
-            _ => Err(format!("expect factor, got {}", token)),
+        } else {
+            Err("expect more token".to_string())
         }
     }
 
     pub fn variable(&mut self) -> ParsingResult<Var> {
-        log::debug!("[VAR   ]");
+        debug!("parsing variable...");
         if let Some(current_token) = self.current_token.clone() {
             if current_token.ty == TokenTy::Id {
                 self.eat(TokenTy::Id)?;
-                Ok(Var {
+                let var = Var {
                     id: current_token.raw.to_lowercase(),
-                })
+                };
+                ast_debug!(var);
+                Ok(var)
             } else {
                 Err(format!("expect variable got {}", current_token))
             }

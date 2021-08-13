@@ -10,7 +10,7 @@ pub trait Visit {
     fn visit(&self, context: &mut HashMap<String, i64>) -> ParsingResult<i64>;
 }
 
-impl <T: Visit> Visit for Box<T> {
+impl<T: Visit> Visit for Box<T> {
     fn visit(&self, context: &mut HashMap<String, i64>) -> ParsingResult<i64> {
         self.as_ref().visit(context)
     }
@@ -40,7 +40,10 @@ fn main() {
                 println!("Error: {}", err);
                 exit(1)
             } else {
-                println!("{:?}", context);
+                println!("execution result:");
+                for (var, val) in context {
+                    println!("{} := {}", var, val);
+                }
             }
         }
         Err(err) => {
