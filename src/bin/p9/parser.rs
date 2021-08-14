@@ -69,30 +69,30 @@ impl Visit for Assignment {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    Span(Term),
-    Norm(BiOperate<Box<Expr>, Term>),
+    Unary(Term),
+    Binary(BiOperate<Box<Expr>, Term>),
 }
 
 impl Visit for Expr {
     fn visit(&self, context: &mut std::collections::HashMap<String, i64>) -> ParsingResult<i64> {
         match self {
-            Expr::Span(term) => term.visit(context),
-            Expr::Norm(binary) => binary.visit(context),
+            Expr::Unary(term) => term.visit(context),
+            Expr::Binary(binary) => binary.visit(context),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Term {
-    Span(Factor),
-    Norm(BiOperate<Box<Term>, Factor>),
+    Unary(Factor),
+    Binary(BiOperate<Box<Term>, Factor>),
 }
 
 impl Visit for Term {
     fn visit(&self, context: &mut std::collections::HashMap<String, i64>) -> ParsingResult<i64> {
         match self {
-            Term::Span(factor) => factor.visit(context),
-            Term::Norm(binary) => binary.visit(context),
+            Term::Unary(factor) => factor.visit(context),
+            Term::Binary(binary) => binary.visit(context),
         }
     }
 }
@@ -289,12 +289,12 @@ impl Parser {
     /// expr: term ((PLUS | MINUS) term)*
     pub fn expr(&mut self) -> ParsingResult<Expr> {
         debug!("parsing expr...");
-        let mut ret = Expr::Span(self.term()?);
+        let mut ret = Expr::Unary(self.term()?);
         while let Some(current_token) = &self.current_token {
             if current_token.ty == TokenTy::Plus {
                 self.eat(TokenTy::Plus)?;
                 let right = self.term()?;
-                ret = Expr::Norm(BiOperate {
+                ret = Expr::Binary(BiOperate {
                     op: BiOperator::Plus,
                     left: Box::new(ret),
                     right,
@@ -302,7 +302,7 @@ impl Parser {
             } else if current_token.ty == TokenTy::Minus {
                 self.eat(TokenTy::Minus)?;
                 let right = self.term()?;
-                ret = Expr::Norm(BiOperate {
+                ret = Expr::Binary(BiOperate {
                     op: BiOperator::Minus,
                     left: Box::new(ret),
                     right,
@@ -318,12 +318,12 @@ impl Parser {
     /// term: factor ((MUL | DIV) factor)*
     pub fn term(&mut self) -> ParsingResult<Term> {
         debug!("parsing term...");
-        let mut ret = Term::Span(self.factor()?);
+        let mut ret = Term::Unary(self.factor()?);
         while let Some(current_token) = &self.current_token {
             if current_token.ty == TokenTy::Mul {
                 self.eat(TokenTy::Mul)?;
                 let right = self.factor()?;
-                ret = Term::Norm(BiOperate {
+                ret = Term::Binary(BiOperate {
                     op: BiOperator::Mul,
                     left: Box::new(ret),
                     right,
@@ -331,7 +331,7 @@ impl Parser {
             } else if current_token.ty == TokenTy::Div {
                 self.eat(TokenTy::Div)?;
                 let right = self.factor()?;
-                ret = Term::Norm(BiOperate {
+                ret = Term::Binary(BiOperate {
                     op: BiOperator::Div,
                     left: Box::new(ret),
                     right,
