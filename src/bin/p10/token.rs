@@ -5,11 +5,19 @@ const OP_CHARS: &str = "+-*/";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenTy {
+    Program,
+    Var,
+    Comma,
+    Colon,
     Integer,
+    Float,
+    IntegerConst,
+    RealConst,
     Plus,
     Minus,
     Mul,
-    Div,
+    IntegerDiv,
+    RealDiv,
     LParen,
     RParen,
     Id,
@@ -23,22 +31,31 @@ pub enum TokenTy {
 
 impl Display for TokenTy {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TokenTy::Integer => write!(f, "Integer"),
-            TokenTy::Mul => write!(f, "Mul"),
-            TokenTy::Div => write!(f, "Div"),
-            TokenTy::Eof => write!(f, "EOF"),
-            TokenTy::Plus => write!(f, "Plus"),
-            TokenTy::LParen => write!(f, "LParent"),
-            TokenTy::RParen => write!(f, "RParent"),
-            TokenTy::Minus => write!(f, "Minus"),
-            TokenTy::Id => write!(f, "Id"),
-            TokenTy::Assign => write!(f, "Assign"),
-            TokenTy::Begin => write!(f, "Begin"),
-            TokenTy::End => write!(f, "End"),
-            TokenTy::Semi => write!(f, "Semi"),
-            TokenTy::Dot => write!(f, "Dot"),
-        }
+        let s = match self {
+            TokenTy::Program => "Program",
+            TokenTy::Var => "Var",
+            TokenTy::Colon => "Colon",
+            TokenTy::Comma => "Comma",
+            TokenTy::Integer => "Integer",
+            TokenTy::Mul => "Mul",
+            TokenTy::Eof => "EOF",
+            TokenTy::Plus => "Plus",
+            TokenTy::LParen => "LParent",
+            TokenTy::RParen => "RParent",
+            TokenTy::Minus => "Minus",
+            TokenTy::Id => "Id",
+            TokenTy::Assign => "Assign",
+            TokenTy::Begin => "Begin",
+            TokenTy::End => "End",
+            TokenTy::Semi => "Semi",
+            TokenTy::Dot => "Dot",
+            TokenTy::Float => "Float",
+            TokenTy::IntegerConst => "IntegerValue",
+            TokenTy::RealConst => "RealValue",
+            TokenTy::IntegerDiv => "IntegerDiv",
+            TokenTy::RealDiv => "RealDiv",
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -64,16 +81,6 @@ impl Display for Token {
 }
 
 impl Token {
-    pub fn integer_token(raw: String, line: usize, start: usize, end: usize) -> Self {
-        Self {
-            ty: TokenTy::Integer,
-            raw,
-            line,
-            start,
-            end,
-        }
-    }
-
     pub fn single_char(ty: TokenTy, ch: char, line: usize, pos: usize) -> Self {
         Self {
             ty,
@@ -86,8 +93,15 @@ impl Token {
 
     pub fn parse_int(&self) -> ParsingResult<i64> {
         match self.ty {
-            TokenTy::Integer => self.raw.parse::<i64>().map_err(|e| format!("{}", e)),
+            TokenTy::IntegerConst => self.raw.parse::<i64>().map_err(|e| format!("{}", e)),
             _ => Err(format!("can't cast {} to i64", self)),
+        }
+    }
+
+    pub fn parse_float(&self) -> ParsingResult<f64> {
+        match self.ty {
+            TokenTy::RealConst => self.raw.parse::<f64>().map_err(|e| format!("{}", e)),
+            _ => Err(format!("can't cast {} to f64", self)),
         }
     }
 
@@ -149,14 +163,31 @@ impl Lexer {
     }
 
     pub fn skip_whitespace(&mut self) {
-        while self.current_char.is_some() && self.current_char.unwrap().is_whitespace() {
-            self.advance()
+        while let Some(ch) = self.current_char {
+            if ch.is_whitespace() {
+                self.advance()
+            } else {
+                break;
+            }
         }
     }
 
-    pub fn integer(&mut self) -> ParsingResult<Token> {
+    pub fn skip_comment(&mut self) {
+        while let Some(ch) = self.current_char {
+            if ch != '}' {
+                self.advance()
+            } else {
+                break;
+            }
+        }
+        self.advance()
+    }
+
+    pub fn number(&mut self) -> ParsingResult<Token> {
         let mut raw = String::new();
         let start = self.current_line_pos;
+        // should not handle '.' in first loop
+        // otherwise "1.2.23" become valid token
         while let Some(ch) = self.current_char {
             if ch.is_digit(10) {
                 raw.push(ch);
@@ -165,8 +196,35 @@ impl Lexer {
                 break;
             }
         }
-        let end = self.current_line_pos;
-        let token = Token::integer_token(raw, self.current_line, start, end);
+        let token = if self.current_char == Some('.') {
+            raw.push(self.current_char.unwrap());
+            self.advance();
+            while let Some(ch) = self.current_char {
+                if ch.is_digit(10) {
+                    raw.push(ch);
+                    self.advance();
+                } else {
+                    break;
+                }
+            }
+            let end = self.current_line_pos;
+            Token {
+                ty: TokenTy::RealConst,
+                raw,
+                line: self.current_line,
+                start,
+                end,
+            }
+        } else {
+            let end = self.current_line_pos;
+            Token {
+                ty: TokenTy::IntegerConst,
+                raw,
+                line: self.current_line,
+                start,
+                end,
+            }
+        };
         Ok(token)
     }
 
@@ -182,6 +240,11 @@ impl Lexer {
             }
         }
         let ty = match id.to_lowercase().as_str() {
+            "program" => TokenTy::Program,
+            "var" => TokenTy::Var,
+            "integer" => TokenTy::Integer,
+            "real" => TokenTy::Float,
+            "div" => TokenTy::IntegerDiv,
             "begin" => TokenTy::Begin,
             "end" => TokenTy::End,
             _ => TokenTy::Id,
@@ -203,11 +266,24 @@ impl Lexer {
                         self.skip_whitespace();
                         continue;
                     }
+                    if ch == '{' {
+                        self.skip_comment();
+                        continue;
+                    }
                     if ch.is_ascii_alphabetic() {
                         break self._id();
                     }
                     if ch.is_digit(10) {
-                        break self.integer();
+                        break self.number();
+                    }
+                    if ch == ',' {
+                        self.advance();
+                        break Ok(Token::single_char(
+                            TokenTy::Comma,
+                            ch,
+                            self.current_line,
+                            self.current_line_pos,
+                        ));
                     }
                     if ch == ':' && self.peek() == Some('=') {
                         self.advance();
@@ -219,6 +295,15 @@ impl Lexer {
                             start: self.current_line_pos,
                             end: self.current_line_pos + 1,
                         });
+                    }
+                    if ch == ':' {
+                        self.advance();
+                        break Ok(Token::single_char(
+                            TokenTy::Colon,
+                            ch,
+                            self.current_line,
+                            self.current_line_pos,
+                        ));
                     }
                     if ch == ';' {
                         self.advance();
@@ -252,7 +337,7 @@ impl Lexer {
                             '+' => TokenTy::Plus,
                             '-' => TokenTy::Minus,
                             '*' => TokenTy::Mul,
-                            '/' => TokenTy::Div,
+                            '/' => TokenTy::RealDiv,
                             _ => unreachable!(),
                         };
                         self.advance();
@@ -272,6 +357,7 @@ impl Lexer {
                             self.pos,
                         ));
                     }
+                    // meet unknown ch, generate dianoetic info
                     let source_subset: String = self
                         .text
                         .lines()

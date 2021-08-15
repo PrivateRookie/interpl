@@ -1,17 +1,35 @@
 mod parser;
 mod token;
-use std::{collections::HashMap, fs::File, io::Read, process::exit};
+use std::{collections::HashMap, fmt::Display, fs::File, io::Read, process::exit};
 
 use parser::Parser;
 use token::Lexer;
 
 type ParsingResult<T> = Result<T, String>;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum VisitRet {
+    Float(f64),
+    Int(i64),
+    None,
+}
+
+impl Display for VisitRet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VisitRet::Float(val) => write!(f, "{}", val),
+            VisitRet::Int(val) => write!(f, "{}", val),
+            VisitRet::None => write!(f, "None"),
+        }
+    }
+}
+
 pub trait Visit {
-    fn visit(&self, context: &mut HashMap<String, i64>) -> ParsingResult<i64>;
+    fn visit(&self, context: &mut HashMap<String, VisitRet>) -> ParsingResult<VisitRet>;
 }
 
 impl<T: Visit> Visit for Box<T> {
-    fn visit(&self, context: &mut HashMap<String, i64>) -> ParsingResult<i64> {
+    fn visit(&self, context: &mut HashMap<String, VisitRet>) -> ParsingResult<VisitRet> {
         self.as_ref().visit(context)
     }
 }

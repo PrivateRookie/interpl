@@ -82,5 +82,14 @@ cargo run --bin p8
 - [impl](src/bin/p9/main.rs.rs)
 
 ```bash
-cargo run --bin p9 ./pascal/p9
+cargo run --bin p9 -- ./pascal/p9
+```
+
+## part10
+
+- [REF](https://ruslanspivak.com/lsbasi-part10/)
+- [impl](src/bin/p10/main.rs.rs)
+
+```bash
+cargo run --bin p9 -- ./pascal/p10.pas
 ```
